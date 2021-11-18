@@ -347,17 +347,7 @@ dependencies {
         implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     }
 
-    //Network
-    implementation "com.squareup.retrofit2:retrofit:2.9.0"
-    implementation "com.squareup.okhttp3:logging-interceptor:4.9.1"
-    implementation "com.squareup.retrofit2:converter-gson:2.6.0"
-
-    // Worker Manager
-    def work_version = "2.7.0"
-    implementation "androidx.work:work-runtime-ktx:$work_version"
-    implementation "androidx.work:work-gcm:$work_version"
-    implementation "androidx.work:work-multiprocess:$work_version"
-
+    implementation project(path: ':SensorReader')
     def nav_version = "2.3.5"
     implementation("androidx.navigation:navigation-fragment-ktx:$nav_version")
     implementation("androidx.navigation:navigation-ui-ktx:$nav_version")

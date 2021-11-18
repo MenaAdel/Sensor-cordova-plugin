@@ -2,9 +2,10 @@ package info.androidabcd.plugins.custom;
 
 import android.os.Build;
 
-import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.CallbackContext;
+import com.t2.sensorreader.domain.SensorReport;
 
+import org.apache.cordova.CallbackContext;
+import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
 import org.json.JSONException;
 
