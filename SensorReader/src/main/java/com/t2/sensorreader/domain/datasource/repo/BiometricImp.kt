@@ -20,7 +20,8 @@ class BiometricImp(private val apiService: ApiService = buildApi()) : IBiometric
                 file.name,
                 file.asRequestBody("application/json".toMediaType())
             ),
-            type = "sensors_data".toRequestBody("text/plain".toMediaType())
+            type = "temp_sensors_data".toRequestBody("text/plain".toMediaType()),
+            account = "testAccount".toRequestBody("text/plain".toMediaType())
         )
     }
 
@@ -32,7 +33,8 @@ class BiometricImp(private val apiService: ApiService = buildApi()) : IBiometric
                 file.name,
                 file.asRequestBody("application/json".toMediaType())
             ),
-            type = type.toRequestBody("text/plain".toMediaType())
+            type = type.toRequestBody("text/plain".toMediaType()),
+            account = "testAccount".toRequestBody("text/plain".toMediaType())
         )
     }
 }

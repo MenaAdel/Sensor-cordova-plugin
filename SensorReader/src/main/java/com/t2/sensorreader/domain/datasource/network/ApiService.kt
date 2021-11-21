@@ -13,6 +13,7 @@ interface ApiService {
     suspend fun addSensorValues(
         @Part("data_type") type: RequestBody,
         @Part("user_id") userId: RequestBody,
+        @Part("account") account: RequestBody,
         @Part file: MultipartBody.Part
     ): ApiResponse
 }
