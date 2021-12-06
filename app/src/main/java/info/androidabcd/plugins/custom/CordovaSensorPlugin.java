@@ -2,10 +2,14 @@ package info.androidabcd.plugins.custom;
 
 import android.os.Build;
 
+import androidx.annotation.NonNull;
+
+import com.t2.sensorreader.domain.SensorListener;
 import com.t2.sensorreader.domain.SensorReport;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
+import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONException;
 
@@ -22,7 +26,7 @@ public class CordovaSensorPlugin extends CordovaPlugin {
             return true;
         }
         if (action.equals("startSensors")) {
-            this.startSensors(callbackContext);
+            this.startSensors(callbackContext ,"");
             return true;
         }
         return false;
@@ -41,9 +45,18 @@ public class CordovaSensorPlugin extends CordovaPlugin {
         super.onStart();
     }
 
-    private void startSensors(final CallbackContext callbackContext) {
+    private void startSensors(final CallbackContext callbackContext ,String deviceId) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            new SensorReport(this.cordova.getContext());
+            SensorReport sensorReport = new SensorReport(this.cordova.getContext(), this.cordova.getActivity() ,deviceId);
+            sensorReport.setSensorListener(new SensorListener() {
+                                               @Override
+                                               public void onApiValueChanged(@NonNull String response) {
+                                                   PluginResult result = new PluginResult(PluginResult.Status.OK, response);
+                                                   result.setKeepCallback(true);
+                                                   callbackContext.sendPluginResult(result);
+                                               }
+                                           }
+            );
         }
     }
 }

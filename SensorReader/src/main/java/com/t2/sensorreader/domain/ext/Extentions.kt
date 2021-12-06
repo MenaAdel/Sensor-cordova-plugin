@@ -11,24 +11,6 @@ import android.util.TypedValue
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-
-@SuppressLint("HardwareIds")
-fun Context.getDeviceIMEI(): String {
-    return if (VERSION.SDK_INT >= VERSION_CODES.Q) {
-        Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ANDROID_ID)
-    } else {
-        val ts: String = Context.TELEPHONY_SERVICE
-        val mTelephonyMgr = getSystemService(ts) as TelephonyManager?
-        if (VERSION.SDK_INT >= VERSION_CODES.O) {
-            mTelephonyMgr?.imei.toString()
-        } else {
-            ""
-        }
-    }
-}
-
 fun getDeviceName(): String =
     if (MODEL.startsWith(MANUFACTURER, ignoreCase = true)) {
         MODEL

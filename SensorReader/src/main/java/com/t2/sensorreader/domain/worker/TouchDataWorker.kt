@@ -15,10 +15,11 @@ class TouchDataWorker(appContext: Context, params: WorkerParameters) :
     companion object {
         private const val USER_ID = "userId"
         private const val FILE_PATH = "filePath"
+        const val OUTPUT_KEY_TOUCH = "outputKeyTouch"
         fun startWorker(
             context: Context,
             userId: String,
-            filePath: String
+            filePath: String,
         ) {
             val sensorDataWorker =
                 OneTimeWorkRequestBuilder<TouchDataWorker>()
@@ -35,9 +36,10 @@ class TouchDataWorker(appContext: Context, params: WorkerParameters) :
             }
             sensorDataWorker.setInputData(inputData.build())
 
-            WorkManager.getInstance(context).enqueue(
-                sensorDataWorker.build()
-            )
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork("TouchDataWorker", ExistingWorkPolicy.KEEP,
+                    sensorDataWorker.build()
+                )
         }
     }
 
@@ -45,15 +47,17 @@ class TouchDataWorker(appContext: Context, params: WorkerParameters) :
         val file = File(inputData.getString(FILE_PATH).toString())
         val id = inputData.getString(USER_ID).toString()
 
-        val touchApi =  biometricRepo.addTouchData(id ,file ,"touch_data")
+        val touchApi = biometricRepo.addTouchData(id, file, "touch_data")
 
         return if (touchApi.status == 200) {
-            Log.d("Worker" ,"Success sending touch data")
-            Result.success()
-        }
-        else {
-            Log.d("Worker" ,"Fail sending touch: ${touchApi.message}")
-            Result.failure()
+            Log.d("Worker", "Success sending touch data")
+            val outputData = createOutputData("Success sending touch data" , OUTPUT_KEY_TOUCH)
+            Result.success(outputData)
+        } else {
+            Log.d("Worker", "Fail sending touch: ${touchApi.message}")
+            val outputData = createOutputData("Fail sending touch: ${touchApi.message}" ,
+                OUTPUT_KEY_TOUCH)
+            Result.failure(outputData)
         }
     }
 

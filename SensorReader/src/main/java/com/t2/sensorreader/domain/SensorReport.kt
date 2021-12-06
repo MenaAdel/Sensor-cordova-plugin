@@ -1,7 +1,9 @@
 @file:JvmName("Sensor123")
 @file:JvmMultifileClass
+
 package com.t2.sensorreader.domain
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.hardware.Sensor
@@ -16,15 +18,17 @@ import android.view.*
 import android.view.accessibility.AccessibilityEvent
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.asFlow
+import androidx.work.WorkManager
 import com.google.gson.Gson
 import com.t2.sensorreader.domain.datasource.storage.writeToFile
 import com.t2.sensorreader.domain.datasource.storage.writeToFileOnDisk
 import com.t2.sensorreader.domain.entity.*
-import com.t2.sensorreader.domain.ext.getDeviceIMEI
 import com.t2.sensorreader.domain.ext.getDeviceName
 import com.t2.sensorreader.domain.ext.getScreenDiameter
 import com.t2.sensorreader.domain.ext.pxToMm
 import com.t2.sensorreader.domain.worker.InfoDataWorker
+import com.t2.sensorreader.domain.worker.InfoDataWorker.Companion.OUTPUT_KEY_INFO
 import com.t2.sensorreader.domain.worker.SensorDataWorker
 import com.t2.sensorreader.domain.worker.TouchDataWorker
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +41,7 @@ import java.util.*
 import kotlin.math.abs
 
 @RequiresApi(Build.VERSION_CODES.N)
-class SensorReport(private val context: Context): SensorEventListener {
+open class SensorReport(private val context: Context, private val activity: Activity ,private val deviceId: String) : SensorEventListener {
 
     private val TAG = this.javaClass.name
     private val sensorFlow: MutableStateFlow<SensorEvent?> = MutableStateFlow(null)
@@ -72,6 +76,7 @@ class SensorReport(private val context: Context): SensorEventListener {
             Locale.getDefault())
     }
     private var isActionMove = false
+    var listener: SensorListener? = null
 
     init {
         dispatchTouchEventListener()
@@ -123,7 +128,7 @@ class SensorReport(private val context: Context): SensorEventListener {
                         }
                     }
 
-                    delay(30000)
+                    delay(6000)
                     fillSensorData()
                 }
             }
@@ -131,9 +136,14 @@ class SensorReport(private val context: Context): SensorEventListener {
         addInfoModel()
     }
 
+    fun setSensorListener(listener: SensorListener) {
+        this.listener = listener
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     private fun setupSensors() {
-        val sensorManager = context.getSystemService(AppCompatActivity.SENSOR_SERVICE) as SensorManager
+        val sensorManager =
+            context.getSystemService(AppCompatActivity.SENSOR_SERVICE) as SensorManager
 
         // accelerometer
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -277,7 +287,8 @@ class SensorReport(private val context: Context): SensorEventListener {
     }
 
     private fun dispatchTouchEventListener() {
-        object :Window.Callback {
+        val window = activity.window
+        val windowCallBack = object : Window.Callback {
             override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
                 TODO("Not yet implemented")
             }
@@ -321,15 +332,15 @@ class SensorReport(private val context: Context): SensorEventListener {
             }
 
             override fun onCreatePanelView(featureId: Int): View? {
-                TODO("Not yet implemented")
+                return null
             }
 
             override fun onCreatePanelMenu(featureId: Int, menu: Menu): Boolean {
-                TODO("Not yet implemented")
+                return true
             }
 
             override fun onPreparePanel(featureId: Int, view: View?, menu: Menu): Boolean {
-                TODO("Not yet implemented")
+                return true
             }
 
             override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
@@ -341,23 +352,18 @@ class SensorReport(private val context: Context): SensorEventListener {
             }
 
             override fun onWindowAttributesChanged(attrs: WindowManager.LayoutParams?) {
-                TODO("Not yet implemented")
             }
 
             override fun onContentChanged() {
-                TODO("Not yet implemented")
             }
 
             override fun onWindowFocusChanged(hasFocus: Boolean) {
-                TODO("Not yet implemented")
             }
 
             override fun onAttachedToWindow() {
-                TODO("Not yet implemented")
             }
 
             override fun onDetachedFromWindow() {
-                TODO("Not yet implemented")
             }
 
             override fun onPanelClosed(featureId: Int, menu: Menu) {
@@ -392,6 +398,7 @@ class SensorReport(private val context: Context): SensorEventListener {
             }
 
         }
+        window.callback = windowCallBack
     }
 
     private fun onEventUp(event: MotionEvent) {
@@ -458,9 +465,11 @@ class SensorReport(private val context: Context): SensorEventListener {
     }
 
     private fun addInfoModel() {
-        val carrierName = (context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager)?.networkOperatorName ?: "unknown"
+        val carrierName =
+            (context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager)?.networkOperatorName
+                ?: "unknown"
         val deviceDetails = DeviceDetails(
-            deviceId = context.getDeviceIMEI(),
+            deviceId = deviceId,
             carrier = carrierName,
             userId = "MENA",
             phoneOS = "android API ${Build.VERSION.SDK_INT}",
@@ -474,7 +483,7 @@ class SensorReport(private val context: Context): SensorEventListener {
             )
         )
 
-        addInfoData(context ,Gson().toJson(deviceDetails))
+        addInfoData(context, Gson().toJson(deviceDetails))
     }
 
     private fun addSensorData(jsonData: String) {
@@ -485,6 +494,16 @@ class SensorReport(private val context: Context): SensorEventListener {
                 context,
                 sensorBody
             )
+            WorkManager.getInstance(context).getWorkInfosForUniqueWorkLiveData("SensorDataWorker").asFlow()
+                .collectLatest {
+                    if (it.size != 0) {
+                        Log.d("reportRR",
+                            it[0].outputData.getString(SensorDataWorker.OUTPUT_KEY_SENSOR)
+                                .toString())
+                        it[0].outputData.getString(SensorDataWorker.OUTPUT_KEY_SENSOR)
+                        listener?.onApiValueChanged(it[0].outputData.getString(SensorDataWorker.OUTPUT_KEY_SENSOR).toString())
+                    }
+                }
         }
     }
 
@@ -496,11 +515,20 @@ class SensorReport(private val context: Context): SensorEventListener {
                 "testId",
                 filePath.toString()
             )
+            WorkManager.getInstance(context).getWorkInfosForUniqueWorkLiveData("TouchDataWorker").asFlow()
+                .collectLatest {
+                    if (it.size != 0) {
+                        Log.d("report",
+                            it[0].outputData.getString(TouchDataWorker.OUTPUT_KEY_TOUCH).toString())
+                        it[0].outputData.getString(TouchDataWorker.OUTPUT_KEY_TOUCH)
+                        listener?.onApiValueChanged(it[0].outputData.getString(TouchDataWorker.OUTPUT_KEY_TOUCH).toString())
+                    }
+                }
         }
     }
 
     private fun addInfoData(context: Context, jsonData: String) {
-        CoroutineScope(Dispatchers.IO).launch{
+        CoroutineScope(Dispatchers.IO).launch {
             val filePath = context.writeToFile(jsonData, "info.json")
             context.writeToFileOnDisk(jsonData, "info.json")
             InfoDataWorker.startWorker(
@@ -508,6 +536,16 @@ class SensorReport(private val context: Context): SensorEventListener {
                 "testId",
                 filePath.toString()
             )
+
+            WorkManager.getInstance(context).getWorkInfosForUniqueWorkLiveData("InfoDataWorker").asFlow()
+                .collectLatest {
+                    if (it.size != 0) {
+                        Log.d("reportRR",
+                            it[0].outputData.getString(OUTPUT_KEY_INFO).toString())
+                        it[0].outputData.getString(OUTPUT_KEY_INFO)
+                        listener?.onApiValueChanged(it[0].outputData.getString(OUTPUT_KEY_INFO).toString())
+                    }
+                }
         }
     }
 }
