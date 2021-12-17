@@ -42,6 +42,7 @@ class SensorDataWorker(val appContext: Context, params: WorkerParameters) :
     }
 
     override suspend fun doWork(): Result {
+        Log.d("Mena" ,"addSensorData 2")
         val sensorBody: SensorBody? = Gson().fromJson(inputData.getString(SENSOR_BODY),
             SensorBody::class.java)
 

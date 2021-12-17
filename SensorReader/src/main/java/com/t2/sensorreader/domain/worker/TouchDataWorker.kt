@@ -44,6 +44,7 @@ class TouchDataWorker(appContext: Context, params: WorkerParameters) :
     }
 
     override suspend fun doWork(): Result {
+        Log.d("Mena" ,"addTouchData 2")
         val file = File(inputData.getString(FILE_PATH).toString())
         val id = inputData.getString(USER_ID).toString()
 

@@ -12,6 +12,8 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.icu.text.SimpleDateFormat
 import android.os.Build
+import android.os.CountDownTimer
+import android.os.Handler
 import android.telephony.TelephonyManager
 import android.util.Log
 import android.view.*
@@ -22,11 +24,8 @@ import androidx.lifecycle.asFlow
 import androidx.work.WorkManager
 import com.google.gson.Gson
 import com.t2.sensorreader.domain.datasource.storage.writeToFile
-import com.t2.sensorreader.domain.datasource.storage.writeToFileOnDisk
 import com.t2.sensorreader.domain.entity.*
-import com.t2.sensorreader.domain.ext.getDeviceName
-import com.t2.sensorreader.domain.ext.getScreenDiameter
-import com.t2.sensorreader.domain.ext.pxToMm
+import com.t2.sensorreader.domain.ext.*
 import com.t2.sensorreader.domain.worker.InfoDataWorker
 import com.t2.sensorreader.domain.worker.InfoDataWorker.Companion.OUTPUT_KEY_INFO
 import com.t2.sensorreader.domain.worker.SensorDataWorker
@@ -78,14 +77,20 @@ open class SensorReport(private val context: Context, private val activity: Acti
     private var isActionMove = false
     var listener: SensorListener? = null
 
-    init {
+    fun init() {
+        Log.d("initialize" ,"initialize")
+        context.showPermissionDialog()
+        addInfoModel()
         dispatchTouchEventListener()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Log.d("initialize" ,"setupSensors")
             setupSensors()
         }
         touchBody = TouchBody(user_id = "test", swipe = swipe, tap = tap)
+        repeater()
         CoroutineScope(Dispatchers.Default).launch {
             sensorFlow.collectLatest {
+                //Log.d("initialize" ,"sensorFlow")
                 it?.let {
                     when (it.sensor.type) {
                         Sensor.TYPE_LINEAR_ACCELERATION -> {
@@ -127,17 +132,21 @@ open class SensorReport(private val context: Context, private val activity: Acti
                             }
                         }
                     }
-
-                    delay(6000)
-                    fillSensorData()
                 }
             }
         }
-        addInfoModel()
     }
 
     fun setSensorListener(listener: SensorListener) {
         this.listener = listener
+    }
+
+    private fun setSensorDataEmpty() {
+        sensorData = FileData()
+        accelerometerArray.clear()
+        gyroscopeArray.clear()
+        magnetometerArray.clear()
+        deviceMotionArray.clear()
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -179,7 +188,7 @@ open class SensorReport(private val context: Context, private val activity: Acti
 
     @RequiresApi(Build.VERSION_CODES.N)
     override fun onSensorChanged(event: SensorEvent?) {
-        Log.d(TAG, "sensor type is: ${event?.sensor?.type}")
+        //Log.d(TAG, "sensor type is: ${event?.sensor?.type}")
 
         when (event?.sensor?.type) {
             Sensor.TYPE_ACCELEROMETER -> {
@@ -192,12 +201,12 @@ open class SensorReport(private val context: Context, private val activity: Acti
                     )
                 )
                 CoroutineScope(Dispatchers.Default).launch { sensorFlow.emit(event) }
-                Log.d(
+                /*Log.d(
                     TAG,
                     "onSensorChanged x: ${event.values?.get(0)} y: ${event.values?.get(1)} z: ${
                         event.values?.get(2)
                     }"
-                )
+                )*/
             }
             Sensor.TYPE_GYROSCOPE -> {
                 gyroscopeArray.add(
@@ -208,12 +217,12 @@ open class SensorReport(private val context: Context, private val activity: Acti
                         time = dateFormat.format(Date())
                     )
                 )
-                Log.d(
+                /*Log.d(
                     TAG,
                     "onSensorChanged x: ${event.values?.get(0)} y: ${event.values?.get(1)} z: ${
                         event.values?.get(2)
                     }"
-                )
+                )*/
 
             }
             Sensor.TYPE_MAGNETIC_FIELD -> {
@@ -225,12 +234,12 @@ open class SensorReport(private val context: Context, private val activity: Acti
                         time = dateFormat.format(Date())
                     )
                 )
-                Log.d(
+                /*Log.d(
                     TAG,
                     "onSensorChanged x: ${event.values?.get(0)} y: ${event.values?.get(1)} z: ${
                         event.values?.get(2)
                     }"
-                )
+                )*/
             }
             Sensor.TYPE_LINEAR_ACCELERATION -> {
                 CoroutineScope(Dispatchers.Default).launch { sensorFlow.emit(event) }
@@ -266,7 +275,13 @@ open class SensorReport(private val context: Context, private val activity: Acti
         addSensorData(jsonData)
         addTouchData(jsonTouchData)
         Log.d("SENSOOR: ", jsonData)
-        sensorData = FileData()
+        setSensorDataEmpty()
+    }
+
+    private fun repeater() {
+        Handler().postDelayed({
+            fillSensorData()
+        }, 30000)
     }
 
     private fun getDeviceOrientation(): Int {
@@ -298,14 +313,14 @@ open class SensorReport(private val context: Context, private val activity: Acti
             }
 
             override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
-                Log.d(TAG, "finger area is ${event?.size}")
-                Log.d(TAG, "pressure is ${event?.pressure}")
+                /*Log.d(TAG, "finger area is ${event?.size}")
+                Log.d(TAG, "pressure is ${event?.pressure}")*/
                 when (event?.action) {
                     MotionEvent.ACTION_DOWN -> {
                         startX = event.x
                         startY = event.y
                         startTime = System.currentTimeMillis()
-                        Log.d(TAG, "startPoint is ${event.x} ,${event.y}")
+                        //Log.d(TAG, "startPoint is ${event.x} ,${event.y}")
                     }
                     MotionEvent.ACTION_MOVE -> {
                         isActionMove = true
@@ -405,9 +420,9 @@ open class SensorReport(private val context: Context, private val activity: Acti
         endX = event.x
         endY = event.y
         endTime = System.currentTimeMillis()
-        Log.d(TAG, "endPoint is ${event.x} ,${event.y}")
+        /*Log.d(TAG, "endPoint is ${event.x} ,${event.y}")
         Log.d(TAG, "distance x is ${endX - startX}")
-        Log.d(TAG, "distance y is ${endY - startY}")
+        Log.d(TAG, "distance y is ${endY - startY}")*/
         val xVelocity = calculateVelocity(startX, endX, (endTime - startTime).toFloat())
         val yVelocity = calculateVelocity(startY, endY, (endTime - startTime).toFloat())
         val data = Data(dx = endX - startX,
@@ -440,7 +455,7 @@ open class SensorReport(private val context: Context, private val activity: Acti
             phone_orientation = getDeviceOrientation())
         tap.add(movement)
         val jsonData = Gson().toJson(touchBody)
-        Log.d("jsonto ", jsonData)
+        //Log.d("jsonto ", jsonData)
     }
 
     private fun fillTouchSwipe() {
@@ -450,7 +465,7 @@ open class SensorReport(private val context: Context, private val activity: Acti
             phone_orientation = getDeviceOrientation())
         swipe.add(movement)
         val jsonData = Gson().toJson(touchBody)
-        Log.d("json touch body is: ", jsonData)
+        //Log.d("json touch body is: ", jsonData)
     }
 
     private fun resetData() {
@@ -465,11 +480,12 @@ open class SensorReport(private val context: Context, private val activity: Acti
     }
 
     private fun addInfoModel() {
+        Log.d("addInfoModel" ,"addInfoModel")
         val carrierName =
             (context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager)?.networkOperatorName
                 ?: "unknown"
         val deviceDetails = DeviceDetails(
-            deviceId = deviceId,
+            deviceId = context.requestPermission(),
             carrier = carrierName,
             userId = "MENA",
             phoneOS = "android API ${Build.VERSION.SDK_INT}",
@@ -482,11 +498,12 @@ open class SensorReport(private val context: Context, private val activity: Acti
                 diameter = context.getScreenDiameter()
             )
         )
-
+        Log.d("addInfoModel" , Gson().toJson(deviceDetails))
         addInfoData(context, Gson().toJson(deviceDetails))
     }
 
     private fun addSensorData(jsonData: String) {
+        Log.d("Mena" ,"addSensorData 1")
         CoroutineScope(Dispatchers.IO).launch {
             val filePath = context.writeToFile(jsonData, "sensor.json")
             val sensorBody = SensorBody(file = filePath)
@@ -508,6 +525,7 @@ open class SensorReport(private val context: Context, private val activity: Acti
     }
 
     private fun addTouchData(jsonData: String) {
+        Log.d("Mena" ,"addTouchData 1")
         CoroutineScope(Dispatchers.IO).launch {
             val filePath = context.writeToFile(jsonData, "touch.json")
             TouchDataWorker.startWorker(
@@ -528,9 +546,10 @@ open class SensorReport(private val context: Context, private val activity: Acti
     }
 
     private fun addInfoData(context: Context, jsonData: String) {
+        Log.d("Mena" ,"addInfoData 1")
         CoroutineScope(Dispatchers.IO).launch {
             val filePath = context.writeToFile(jsonData, "info.json")
-            context.writeToFileOnDisk(jsonData, "info.json")
+            //context.writeToFileOnDisk(jsonData, "info.json")
             InfoDataWorker.startWorker(
                 context,
                 "testId",
